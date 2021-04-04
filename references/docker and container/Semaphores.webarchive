@@ -1,0 +1,198 @@
+bplist00Ò_WebMainResource_WebSubresourcesÕ	
+_WebResourceData_WebResourceMIMEType_WebResourceTextEncodingName^WebResourceURL_WebResourceFrameNameO%†<!DOCTYPE html PUBLIC "-//IETF//DTD HTML 2.0//EN"><!--Converted with LaTeX2HTML 96.1 (Feb 5, 1996) by Nikos Drakos (nikos@cbl.leeds.ac.uk), CBLU, University of Leeds --><html><head>
+<title>Semaphores</title>
+<meta name="description" content="Semaphores">
+<meta name="keywords" content="tlk-html">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<link rel="STYLESHEET" href="tlk-html.css">
+</head>
+<body lang="EN">
+ <a name="tex2html1550" href="node59.html"><img width="37" height="24" align="BOTTOM" alt="next" src=".//next_motif.gif"></a> <a name="tex2html1548" href="node56.html"><img width="26" height="24" align="BOTTOM" alt="up" src=".//up_motif.gif"></a> <a name="tex2html1542" href="node57.html"><img width="63" height="24" align="BOTTOM" alt="previous" src=".//previous_motif.gif"></a> <a name="tex2html1552" href="node5.html"><img width="65" height="24" align="BOTTOM" alt="contents" src=".//contents_motif.gif"></a>  <br>
+<b> Next:</b> <a name="tex2html1551" href="node59.html">Shared Memory</a>
+<b>Up:</b> <a name="tex2html1549" href="node56.html">System V IPC Mechanisms</a>
+<b> Previous:</b> <a name="tex2html1543" href="node57.html">Message Queues</a>
+<br> <p>
+</p><h3><a name="SECTION00774200000000000000">Semaphores</a></h3>
+<p>
+<a name="3885">&nbsp;</a>
+<a name="3886">&nbsp;</a>
+<a name="3887">&nbsp;</a>
+In its simplest form a semaphore is a location in memory whose value can be 
+tested and set by more than one process.
+The test and set operation is, so far as each process is concerned, uninterruptible or
+atomic; once started nothing can stop it.
+The result of the test and set operation is the addition of the current value of 
+the semaphore and the set value, which can be positive or negative.
+Depending on the result of the test and set operation one process may have to sleep
+until the semphore's value is changed by another process.
+Semaphores can be used to implement <em>critical regions</em>, areas of critical code
+which only one process at a time should be executing.
+</p><p>
+Say you had many cooperating processes reading records from and writing records to a 
+single data file.
+You would want that file access to be strictly coordinated.
+You could use a semaphore with an initial value of 1 and, around the file operating
+code, put two semaphore operations, the first to test and decrement the semaphore's
+value and the second to test and increment it.
+The first process to access the file would try to decrement the semaphore's value and
+it would succeed, the semaphore's value now being 0.
+This process can now go ahead and use the data file but if another process wishing to
+use it now tries to decrement the semaphore's value it would fail as the result would
+be -1.
+That process will be suspended until the first process has finished with the data file.
+When the first process has finished with the data file it will increment the semaphore's
+value, making it 1 again.
+Now the waiting process can be woken and this time its attempt to increment the 
+semaphore will succeed.
+</p><p>
+</p><p><a name="4133">&nbsp;</a><a name="semaphorefigure">&nbsp;</a> <img width="460" height="336" align="BOTTOM" alt="figure3889" src="img45.gif"> <br>
+<strong>Figure:</strong> System V IPC Semaphores<br>
+</p><p>
+System V IPC semaphore objects each describe a semaphore array and Linux uses the
+<tt>semid_ds</tt><a name="4286">&nbsp;</a> 
+<a name="4137">&nbsp;</a>
+</p><p>
+data structure to represent this.
+All of the <tt>semid_ds</tt><a name="4294">&nbsp;</a> data structures in the system are pointed at by
+the <tt>semary</tt><a name="4296">&nbsp;</a>, a vector of pointers.
+There are <tt>sem_nsems</tt><a name="4298">&nbsp;</a> in each semaphore array, each one described by a 
+<tt>sem</tt><a name="4300">&nbsp;</a> 
+<a name="4143">&nbsp;</a>
+data structure pointed at by <tt>sem_base</tt><a name="4302">&nbsp;</a>.
+All of the processes that are allowed to manipulate the semaphore array of a System
+V IPC semaphore object may make system calls that perform operations on them.
+The system call can specify many operations and 
+each operation is described by three inputs; the semaphore index, the operation value and
+a set of flags.
+The semaphore index is an index into the semaphore array and the operation value is
+a numerical value which will be added to the current value of the semaphore.
+First Linux tests whether or not all of the operations would succeed.
+An operation will succeed if the operation value added to the semaphore's current
+value would be greater than zero or if both the operation value and the semaphore's
+current value are zero.
+If any of the semaphore operations would fail Linux may suspend the process but
+only if the operation flags have not requested that the system call is non-blocking.
+If the process is to be suspended then Linux must save the state of
+the semaphore operations to be performed and put hte current process onto a wait
+queue.
+It does this by building a <tt>sem_queue</tt><a name="4304">&nbsp;</a> 
+<a name="4146">&nbsp;</a> data structure on the stack and filling
+it out.
+The new <tt>sem_queue</tt><a name="4306">&nbsp;</a> data structure is put at the end of this semaphore
+object's wait queue (using the <tt>sem_pending</tt><a name="4308">&nbsp;</a> and <tt>sem_pending_last</tt><a name="4310">&nbsp;</a>
+pointers).
+The current process is put on the wait queue in the <tt>sem_queue</tt><a name="4312">&nbsp;</a> data structure
+(<tt>sleeper</tt><a name="4314">&nbsp;</a>) and the scheduler called to choose another process to run.
+</p><p>
+If all of the semaphore operations would have succeeded and the current process
+does not need to be suspended, Linux goes ahead and applies the operations to the
+appropriate members of the semaphore array.
+Now Linux must check that any waiting, suspended, processes may now apply their
+semaphore operations.
+It looks at each member of the operations pending queue (<tt>sem_pending</tt><a name="4316">&nbsp;</a>) in 
+turn testing to see if the semphore operations will succeed this time.
+If they will then it removes the <tt>sem_queue</tt><a name="4318">&nbsp;</a> data structure from the operations
+pending list and applies the semaphore operations to the semaphore array.
+It wakes up the sleeping process making available to be restarted the next time the
+scheduler runs.
+Linux keeps looking through the pending list from the start until there is a pass
+where no semaphore operations can be applied and so no more processes can be woken.
+</p><p>
+There is a problem with semaphores, <em>deadlocks</em>.
+These occur when one process has altered the semaphores value as it enters
+a critical region but then fails to leave the critical region because it crashed
+or was killed.
+Linux protects against this by maintaining lists of adjustments to the semaphore
+arrays.
+The idea is that when these adjustments are applied, the semaphores will be put back
+to the state that they were in before the a processes set of semaphore operations 
+were applied.
+These adjustments are kept in <tt>sem_undo</tt><a name="4320">&nbsp;</a><a name="4156">&nbsp;</a> data
+structures queued both on the <tt>semid_ds</tt><a name="4322">&nbsp;</a> data structure and on the <tt>task_struct</tt><a name="4324">&nbsp;</a>
+data structure for the processes using these semaphore arrays.
+</p><p>
+Each individual semaphore operation may request that an adjustment be maintained.
+Linux will maintain at most one <tt>sem_undo</tt><a name="4326">&nbsp;</a> data structure per process for each 
+semaphore array.
+If the requesting process does not have one, then one is created when it is needed.
+The new <tt>sem_undo</tt><a name="4328">&nbsp;</a> data structure is queued both onto this processes <tt>task_struct</tt><a name="4330">&nbsp;</a>
+data structure and onto the semaphore array's <tt>semid_ds</tt><a name="4332">&nbsp;</a> data structure.
+As operations are applied to the semphores in the semaphore array the negation of
+the operation value is added to this semphore's entry in the adjustment array of
+this processes <tt>sem_undo</tt><a name="4334">&nbsp;</a> data structure.
+So, if the operation value is 2, then -2 is added to the adjustment entry for this
+semaphore.
+</p><p>
+When processes are deleted, as they exit Linux works through their set of
+<tt>sem_undo</tt><a name="4336">&nbsp;</a> data structures applying the adjustments to the semaphore arrays.
+If a semaphore set is deleted, the <tt>sem_undo</tt><a name="4338">&nbsp;</a> data structures are left queued
+on the processes <tt>task_struct</tt><a name="4340">&nbsp;</a> but the semaphore array identifier is made
+invalid.
+In this case the semaphore clean up code simply discards the <tt>sem_undo</tt><a name="4342">&nbsp;</a> data
+structure.
+</p><p>
+</p><hr><a name="tex2html1550" href="node59.html"><img width="37" height="24" align="BOTTOM" alt="next" src=".//next_motif.gif"></a> <a name="tex2html1548" href="node56.html"><img width="26" height="24" align="BOTTOM" alt="up" src=".//up_motif.gif"></a> <a name="tex2html1542" href="node57.html"><img width="63" height="24" align="BOTTOM" alt="previous" src=".//previous_motif.gif"></a> <a name="tex2html1552" href="node5.html"><img width="65" height="24" align="BOTTOM" alt="contents" src=".//contents_motif.gif"></a>  <br>
+<b> Next:</b> <a name="tex2html1551" href="node59.html">Shared Memory</a>
+<b>Up:</b> <a name="tex2html1549" href="node56.html">System V IPC Mechanisms</a>
+<b> Previous:</b> <a name="tex2html1543" href="node57.html">Message Queues</a>
+<p></p><address>
+<i>David A. Rusling<br>
+david.rusling@reo.mts.dec.com</i>
+</address>
+
+
+</body></html>Ytext/htmlUUTF-8_@http://www.science.unitn.it/~fiorella/guidelinux/tlk/node58.htmlP¦"&Ô_WebResourceResponseOX
+SMALL.TINY		{ font-size : xx-small }
+SMALL.SCRIPTSIZE	{ font-size : xx-small }
+SMALL.FOOTNOTESIZE	{ font-size : x-small  }
+SMALL.SMALL		{ font-size : small    }
+BIG.LARGE		{ font-size : large    }
+BIG.XLARGE		{ font-size : x-large  }
+BIG.XXLARGE		{ font-size : xx-large }
+BIG.HUGE		{ font-size : xx-large }
+BIG.XHUGE		{ font-size : xx-large }
+Xtext/css_Ahttp://www.science.unitn.it/~fiorella/guidelinux/tlk/tlk-html.cssOàbplist00Ô
+X$versionY$archiverT$topX$objects † _NSKeyedArchiverÑ	_WebResourceResponse€¯'-.4567OPQRSTUVWXYZ[\]^_`aeU$nullİ !"#$%&___nsurlrequest_proto_prop_obj_6___nsurlrequest_proto_prop_obj_3R$2___nsurlrequest_proto_prop_obj_0R$3___nsurlrequest_proto_prop_obj_4V$class___nsurlrequest_proto_prop_obj_1R$4R$0___nsurlrequest_proto_prop_obj_5___nsurlrequest_proto_prop_obj_2R$1€€€	€€€€ €Ó()$+,WNS.base[NS.relative€ €€_Ahttp://www.science.unitn.it/~fiorella/guidelinux/tlk/tlk-html.cssÒ/012Z$classnameX$classesUNSURL¢13XNSObject#AÃÜöå‚V ÈÓ89:DNWNS.keysZNS.objects©;<=>?@ABC€	€
+€€€€€€€©EGHIJKLM€€€€€€€€€€VServer\Content-TypeTEtag]Last-ModifiedX__hhaa__]Accept-RangesTDate^Content-LengthZConnection_Apache/2.2.15 (CentOS)Xtext/css_"8004fe81-158-30e2edbbccd00"_Wed, 02 Apr 1997 22:15:48 GMT_Ü
+
+YnBsaXN0MDDYAQIDBAUGBwgJCw0PERMVF1pDb25uZWN0aW9uVlNlcnZlclxDb250ZW50LVR5cGVdTGFzdC1Nb2RpZmllZF1BY2NlcHQtUmFuZ2VzVERhdGVeQ29udGVudC1MZW5ndGhURXRhZ6EKVWNsb3NloQxfEBZBcGFjaGUvMi4yLjE1IChDZW50T1MpoQ5YdGV4dC9jc3OhEF8QHVdlZCwgMDIgQXByIDE5OTcgMjI6MTU6NDggR01UoRJVYnl0ZXOhFF8QHVN1biwgMjEgTWFyIDIwMjEgMTc6MjA6MTUgR01UoRZTMzQ0oRhfEBwiODAwNGZlODEtMTU4LTMwZTJlZGJiY2NkMDAiAAgAGQAkACsAOABGAFQAWQBoAG0AbwB1AHcAkACSAJsAnQC9AL8AxQDHAOcA6QDtAO8AAAAAAAACAQAAAAAAAAAZAAAAAAAAAAAAAAAAAAABDg==Ubytes_Sun, 21 Mar 2021 17:20:15 GMTS344UcloseÒ/0bc_NSMutableDictionary£bd3\NSDictionaryÒ/0fg_NSHTTPURLResponse£hi3_NSHTTPURLResponse]NSURLResponse    $ ) 2 7 I L b d „ Š ¥ Ç é ì3:\_b„¦©«­¯±³µ·¹º¼¾ÀÂÉÑİßáã',7@FIR[]_fnyƒ…‡‰‹‘“•Ÿ¡£¥§©«­¯±³ºÇÌÚãñö)2QqQWw{†œ ­²ÆÊŞ             j              ìÔO¬GIF89a%  ñ  ¿¿¿çççooo[  !ù    ,    %   }Œ©Ëí¿„´Ú‹ó2èbÜ–ßè™êÖUö®bK±+7€âûnÚõj:ËÍf#ú’”añùü)gŒy5Nq+÷Šdê¤]´˜ÍˆÏ^Ÿò’f›bj”ÛœÃXí¸L’£â$XBXrˆ¨¡¸8cÀ)9IYi`™©™Y  ;Yimage/gif_Dhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//next_motif.gifOãbplist00Ô
+X$versionY$archiverT$topX$objects † _NSKeyedArchiverÑ	_WebResourceResponse€¯'-.4567OPQRSTUVWXYZ[\]^_`aeU$nullİ !"#$%&___nsurlrequest_proto_prop_obj_6___nsurlrequest_proto_prop_obj_3R$2___nsurlrequest_proto_prop_obj_0R$3___nsurlrequest_proto_prop_obj_4V$class___nsurlrequest_proto_prop_obj_1R$4R$0___nsurlrequest_proto_prop_obj_5___nsurlrequest_proto_prop_obj_2R$1€€€	€€€€ €Ó()$+,WNS.base[NS.relative€ €€_Dhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//next_motif.gifÒ/012Z$classnameX$classesUNSURL¢13XNSObject#AÃÜöåë ÈÓ89:DNWNS.keysZNS.objects©;<=>?@ABC€	€
+€€€€€€€©EGHIJKLM€€€€€€€€€€VServer\Content-TypeTEtag]Last-ModifiedX__hhaa__]Accept-RangesTDate^Content-LengthZConnection_Apache/2.2.15 (CentOS)Yimage/gif_"8004fde6-ac-30e2edbbccd00"_Wed, 02 Apr 1997 22:15:48 GMT_Ü
+
+YnBsaXN0MDDYAQIDBAUGBwgJCw0PERMVF1pDb25uZWN0aW9uVlNlcnZlclxDb250ZW50LVR5cGVdTGFzdC1Nb2RpZmllZF1BY2NlcHQtUmFuZ2VzVERhdGVeQ29udGVudC1MZW5ndGhURXRhZ6EKVWNsb3NloQxfEBZBcGFjaGUvMi4yLjE1IChDZW50T1MpoQ5ZaW1hZ2UvZ2lmoRBfEB1XZWQsIDAyIEFwciAxOTk3IDIyOjE1OjQ4IEdNVKESVWJ5dGVzoRRfEB1TdW4sIDIxIE1hciAyMDIxIDE3OjIwOjE2IEdNVKEWUzE3MqEYXxAbIjgwMDRmZGU2LWFjLTMwZTJlZGJiY2NkMDAiAAgAGQAkACsAOABGAFQAWQBoAG0AbwB1AHcAkACSAJwAngC+AMAAxgDIAOgA6gDuAPAAAAAAAAACAQAAAAAAAAAZAAAAAAAAAAAAAAAAAAABDg==Ubytes_Sun, 21 Mar 2021 17:20:16 GMTS172UcloseÒ/0bc_NSMutableDictionary£bd3\NSDictionaryÒ/0fg_NSHTTPURLResponse£hi3_NSHTTPURLResponse]NSURLResponse    $ ) 2 7 I L b d „ Š ¥ Ç é ì3:\_b„¦©«­¯±³µ·¹º¼¾ÀÂÉÑİßáã*/:CILU^`biq|†ˆŠŒ’”–˜¢¤¦¨ª¬®°²´¶½ÊÏİæôù,6TtTZz~„‰Ÿ£°µÉÍá             j              ïÔO‘GIF89a  ñ  ¿¿¿çççooo[  !ù    ,       bŒ©Ë­b€œ´Z `¸üæØ…Ò·‰!9–zjé*¢KÑœØó>ô®ËÍX6 Lø¹vbmbl2§Ñ'’ºœ^}WLvÈå…½ QPYÉ%óík²àârMæÏëñ½ÿ/P  ;_Bhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//up_motif.gifOábplist00Ô
+X$versionY$archiverT$topX$objects † _NSKeyedArchiverÑ	_WebResourceResponse€¯'-.4567OPQRSTUVWXYZ[\]^_`aeU$nullİ !"#$%&___nsurlrequest_proto_prop_obj_6___nsurlrequest_proto_prop_obj_3R$2___nsurlrequest_proto_prop_obj_0R$3___nsurlrequest_proto_prop_obj_4V$class___nsurlrequest_proto_prop_obj_1R$4R$0___nsurlrequest_proto_prop_obj_5___nsurlrequest_proto_prop_obj_2R$1€€€	€€€€ €Ó()$+,WNS.base[NS.relative€ €€_Bhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//up_motif.gifÒ/012Z$classnameX$classesUNSURL¢13XNSObject#AÃÜöå–– ÈÓ89:DNWNS.keysZNS.objects©;<=>?@ABC€	€
+€€€€€€€©EGHIJKLM€€€€€€€€€€VServer\Content-TypeTEtag]Last-ModifiedX__hhaa__]Accept-RangesTDate^Content-LengthZConnection_Apache/2.2.15 (CentOS)Yimage/gif_"8004fe83-91-30e2edbbccd00"_Wed, 02 Apr 1997 22:15:48 GMT_Ü
+
+YnBsaXN0MDDYAQIDBAUGBwgJCw0PERMVF1pDb25uZWN0aW9uVlNlcnZlclxDb250ZW50LVR5cGVdTGFzdC1Nb2RpZmllZF1BY2NlcHQtUmFuZ2VzVERhdGVeQ29udGVudC1MZW5ndGhURXRhZ6EKVWNsb3NloQxfEBZBcGFjaGUvMi4yLjE1IChDZW50T1MpoQ5ZaW1hZ2UvZ2lmoRBfEB1XZWQsIDAyIEFwciAxOTk3IDIyOjE1OjQ4IEdNVKESVWJ5dGVzoRRfEB1TdW4sIDIxIE1hciAyMDIxIDE3OjIwOjE2IEdNVKEWUzE0NaEYXxAbIjgwMDRmZTgzLTkxLTMwZTJlZGJiY2NkMDAiAAgAGQAkACsAOABGAFQAWQBoAG0AbwB1AHcAkACSAJwAngC+AMAAxgDIAOgA6gDuAPAAAAAAAAACAQAAAAAAAAAZAAAAAAAAAAAAAAAAAAABDg==Ubytes_Sun, 21 Mar 2021 17:20:16 GMTS145UcloseÒ/0bc_NSMutableDictionary£bd3\NSDictionaryÒ/0fg_NSHTTPURLResponse£hi3_NSHTTPURLResponse]NSURLResponse    $ ) 2 7 I L b d „ Š ¥ Ç é ì3:\_b„¦©«­¯±³µ·¹º¼¾ÀÂÉÑİßáã(-8AGJS\^`goz„†ˆŠŒ’”– ¢¤¦¨ª¬®°²´»ÈÍÛäò÷*4RrRXx|‚‡¡®³ÇËß             j              íÔ !OÜGIF89a?  ñ  ¿¿¿çççooo[  !ù    ,    ?   ­Œ©Ëí£œI€³Ş¼ûj‚„æ‰~ã•¶.¸–ïLq6äz¼HÂir¿"æÖÛøŒ?$`)|J{»©ªÃ©ÄŒú\v­S­UM‚¡ß¬95£ã[0EŞâÜğrß5æô§WxE—øWeC˜—ö¨¦xÈæhyf¨ÉFf‰‡Y)ø¹'¸#ÆØˆÇÔ:ÈêÚê+ëHË4{[3Òëû,<LPŒœ¬Œ\  ;_Hhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//previous_motif.gifOçbplist00Ô
+X$versionY$archiverT$topX$objects † _NSKeyedArchiverÑ	_WebResourceResponse€¯'-.4567OPQRSTUVWXYZ[\]^_`aeU$nullİ !"#$%&___nsurlrequest_proto_prop_obj_6___nsurlrequest_proto_prop_obj_3R$2___nsurlrequest_proto_prop_obj_0R$3___nsurlrequest_proto_prop_obj_4V$class___nsurlrequest_proto_prop_obj_1R$4R$0___nsurlrequest_proto_prop_obj_5___nsurlrequest_proto_prop_obj_2R$1€€€	€€€€ €Ó()$+,WNS.base[NS.relative€ €€_Hhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//previous_motif.gifÒ/012Z$classnameX$classesUNSURL¢13XNSObject#AÃÜöå ÈÓ89:DNWNS.keysZNS.objects©;<=>?@ABC€	€
+€€€€€€€©EGHIJKLM€€€€€€€€€€VServer\Content-TypeTEtag]Last-ModifiedX__hhaa__]Accept-RangesTDate^Content-LengthZConnection_Apache/2.2.15 (CentOS)Yimage/gif_"8004fe7e-dc-30e2edbbccd00"_Wed, 02 Apr 1997 22:15:48 GMT_Ü
+
+YnBsaXN0MDDYAQIDBAUGBwgJCw0PERMVF1pDb25uZWN0aW9uVlNlcnZlclxDb250ZW50LVR5cGVdTGFzdC1Nb2RpZmllZF1BY2NlcHQtUmFuZ2VzVERhdGVeQ29udGVudC1MZW5ndGhURXRhZ6EKVWNsb3NloQxfEBZBcGFjaGUvMi4yLjE1IChDZW50T1MpoQ5ZaW1hZ2UvZ2lmoRBfEB1XZWQsIDAyIEFwciAxOTk3IDIyOjE1OjQ4IEdNVKESVWJ5dGVzoRRfEB1TdW4sIDIxIE1hciAyMDIxIDE3OjIwOjE2IEdNVKEWUzIyMKEYXxAbIjgwMDRmZTdlLWRjLTMwZTJlZGJiY2NkMDAiAAgAGQAkACsAOABGAFQAWQBoAG0AbwB1AHcAkACSAJwAngC+AMAAxgDIAOgA6gDuAPAAAAAAAAACAQAAAAAAAAAZAAAAAAAAAAAAAAAAAAABDg==Ubytes_Sun, 21 Mar 2021 17:20:16 GMTS220UcloseÒ/0bc_NSMutableDictionary£bd3\NSDictionaryÒ/0fg_NSHTTPURLResponse£hi3_NSHTTPURLResponse]NSURLResponse    $ ) 2 7 I L b d „ Š ¥ Ç é ì3:\_b„¦©«­¯±³µ·¹º¼¾ÀÂÉÑİßáã.3>GMPYbdfmu€ŠŒ’”–˜šœ¦¨ª¬®°²´¶¸ºÁÎÓáêøı0:XxX^~‚ˆ£§´¹ÍÑå             j              óÔ#$%OáGIF89aA  ñ  ¿¿¿çççooo[  !ù    ,    A   ²Œ©Ëí£œM€³Ş¼ûr‚„æ‰†ã•¶®¹–ïLgñ6äCÍw–Îv/¢¤1b”(fS…\‚tÆnÄfÖì•ûÅü¸S)VH6›·ÄvÒMw”ntõ-O×Eq'zWEµ§§ÅÇ’‡¸¨†˜´5–HH©æG×ø'ÉÆ˜Wùøˆ)§ÅDõ§GÇi× Ù+[»Ak›‹›[»Ë3"<L\l|ŒœŒ Üìüü\  ;_Hhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//contents_motif.gifOçbplist00Ô
+X$versionY$archiverT$topX$objects † _NSKeyedArchiverÑ	_WebResourceResponse€¯'-.4567OPQRSTUVWXYZ[\]^_`aeU$nullİ !"#$%&___nsurlrequest_proto_prop_obj_6___nsurlrequest_proto_prop_obj_3R$2___nsurlrequest_proto_prop_obj_0R$3___nsurlrequest_proto_prop_obj_4V$class___nsurlrequest_proto_prop_obj_1R$4R$0___nsurlrequest_proto_prop_obj_5___nsurlrequest_proto_prop_obj_2R$1€€€	€€€€ €Ó()$+,WNS.base[NS.relative€ €€_Hhttp://www.science.unitn.it/~fiorella/guidelinux/tlk//contents_motif.gifÒ/012Z$classnameX$classesUNSURL¢13XNSObject#AÃÜöå£n ÈÓ89:DNWNS.keysZNS.objects©;<=>?@ABC€	€
+€€€€€€€©EGHIJKLM€€€€€€€€€€VServer\Content-TypeTEtag]Last-ModifiedX__hhaa__]Accept-RangesTDate^Content-LengthZConnection_Apache/2.2.15 (CentOS)Yimage/gif_"8004fd2d-e1-30e2edbbccd00"_Wed, 02 Apr 1997 22:15:48 GMT_Ü
+
+YnBsaXN0MDDYAQIDBAUGBwgJCw0PERMVF1pDb25uZWN0aW9uVlNlcnZlclxDb250ZW50LVR5cGVdTGFzdC1Nb2RpZmllZF1BY2NlcHQtUmFuZ2VzVERhdGVeQ29udGVudC1MZW5ndGhURXRhZ6EKVWNsb3NloQxfEBZBcGFjaGUvMi4yLjE1IChDZW50T1MpoQ5ZaW1hZ2UvZ2lmoRBfEB1XZWQsIDAyIEFwciAxOTk3IDIyOjE1OjQ4IEdNVKESVWJ5dGVzoRRfEB1TdW4sIDIxIE1hciAyMDIxIDE3OjIwOjE2IEdNVKEWUzIyNaEYXxAbIjgwMDRmZDJkLWUxLTMwZTJlZGJiY2NkMDAiAAgAGQAkACsAOABGAFQAWQBoAG0AbwB1AHcAkACSAJwAngC+AMAAxgDIAOgA6gDuAPAAAAAAAAACAQAAAAAAAAAZAAAAAAAAAAAAAAAAAAABDg==Ubytes_Sun, 21 Mar 2021 17:20:16 GMTS225UcloseÒ/0bc_NSMutableDictionary£bd3\NSDictionaryÒ/0fg_NSHTTPURLResponse£hi3_NSHTTPURLResponse]NSURLResponse    $ ) 2 7 I L b d „ Š ¥ Ç é ì3:\_b„¦©«­¯±³µ·¹º¼¾ÀÂÉÑİßáã.3>GMPYbdfmu€ŠŒ’”–˜šœ¦¨ª¬®°²´¶¸ºÁÎÓáêøı0:XxX^~‚ˆ£§´¹ÍÑå             j              óÔ'()OÊGIF89aÌP€     ¿¿¿!ù   ,    ÌP şŒ©Ëí£œ´ÚŞ¼û†!F–æ‰¦êÊ¶îÇH×6(çúÎ÷ş>4Â±ˆL*—Ì¦³qLFŸÔªõŠÍ"¦E®ö‹ÇC†7x&«×ì¶p£Hÿäîºı·xô^?(xrShx³ô7¸ÈØ¸pÙ‘àhy‰ÉWù6i ¨ó™):*êg´)¥JÚêJfÚÂº5Ëùz‹«»³ûÒ›ó+CÌb,œ¬L‚ì[‹ö¬„ºLØ|=—İ5]ímw-»í7ı}~~\ÎËÎáù>OÔO__Ê®M™á©i<›
+|4P¾…ä¨(,*Ê.Gè=RUé!Ãş14¢ğxA‘Åjz&q?,m=©§\E‚¬*Ìx&%Ì–<!®$')(CUŞë”í(¾LÍ½
+¯¦TÃìdö³cÖW«zMÑ•«¿ba¿šÅP¶BÚ![Ïº×6ÇZsßÚER7C\qÒòŞmê—íØUó}:ï^ÃŒS9\¼B$ªyRßlù²=¥›ßL²Š?U4ú @’÷N¯¶i`iÏ‡Kšı8w_¢˜ª^M25ÎÓ)…o]ÕË8Üˆ›f‡âoƒÀuª.û$ò·Ë­1_—ØÔ4]'h|&yêëgÓNÅY„½ã1oÿø=r~Ÿ¼şÓ_>‚<{˜ÆîÇFêe§ yÉ6÷Å Zö÷óøæ ‡®Ù†Ó„„\hÂ„y‰èÖUPq´Œ×I(Ú¦˜63~¥`iêUwp ²(!‰üí–!#­Y¤"€Ô)9œ€uÜH^EN	”&
+Ie–`aiaT^.¥e˜D:ñe™\Š‰&V©Wšn>G&›¾Ig?ÎIYgíè§~#§š†ö''fŠ¨Pdñ‰g¡>$
+i¤†hÅ(7eœ”Şié¥
+‹k†ç©\ ±Ó¨c–
+Ê©ûlªéª¬.êMª®
+&ë¬€~ck¥.éJk5½rú+°»Ö*şê­„æj,xÈÂÚÄ•ÍB»Ì°±ö9­³Â&ë«SÙÖFµÑ*ûâ·àVË-±Şš;ZÉˆË„´ìê¥0ğ’ºî¼#òšîµê["eÓd†É½}I
+	À[—Ú‡—¼
+Â‡(ŒÃ­µñ¿ÅRl!ÃåaÜï¸ør,¨Å=’‹iÈñ¢É\Ù'QF£dÜ)¶.—\.04oÌóÍHg¯Ê#Ûé³Z5IÊÎùö\4®ÛR;ô§MÍ/ÔÌ¦<5ÎOëoÍYÏ®ĞWıµÓa[móÒe_T5×"½6è¢­±Úqç|¶Û+G}w¦o;Ó-ÖwC!qá†ÓíuâƒÓbxã‘"Î4Ù‹ãş=·Ş|kÈr~ïm9ÜMNaÛ€«+8è”+£téuO¾ùåCvùà­{pà’›>{ÚíÚ.µé§¿+¶î·ƒûê“><ë™_‘ºå{Ë•çóĞG¯Üò´¿ş·ñ²O§½ğ#ß{ôæM}÷Š/`ˆ*v¦Y:Á{ÿ¹ù›LÜMÂ¹İÉ/~?EÈ&{ÒüÖ§:ß=³™HetÀØÕ{'cà ä0ö/ŒÛQb“$Ø4)|µëœø&¨@’o_+Äœù¤‡ºú¯|6x‡BÜ©vôjá^X<‡dŸÏåºV½°^1Üàÿh˜Â#jK}\[ş«ˆºˆ;¤b‰øÄ¾u‘sé##ı<8Æ$vÌ‡Jä¢¿èÅ"*ï»c£©–xÅ²ŒPÔ!‡8.ëÉÇÏ2¡b9Bn­ŒKD"'6Ò¬d$$9É¤¥q{YÌ$ú>‰DOêl“C˜(§‡R
+JR§åù×ÊÆ<$`‹å_è¾ÿÄˆq¸ÔNüìhK¦Œ$6¯±`èôš“dPöƒÙ )¤$á|0f´İ†Î¤ñ¨3Ùáã$utcÆ5áÌŸ9}¤¥ÔcG(g1w©E<ö&~îÉ™Exö¬a˜kØ2{ù1b¢“™)P¹êù£†­˜ò;’şöÀ¤ÿèÒ Ãôf#İ9ŸlÚ“5ëñ§‹Ò©J!fòbêŒ¦fH"d~™l¨fƒyŒQş¦‘i!i*’Å’<µ'{ê%Tu¨Rù&Q#ùª›^T§lKê"—ÓfaF1;áë¸E«ƒ"ÍZ4²—ÊLTªX¸Qø\Êì5Õ˜ü-$°ñ’šîÃ¥AŞ§KC~M®9É'9¹úC­b”¿9èyØº?’p§Gm¬c¹VÌ­LÍkz¦³ÖÃ¶£j cÚĞ>î˜úl’Üî¸'t]èÉZ¾« 5E1«ešR¤İ0µ0,kK@…ºG±Å¤Ëğş1[&NÕ 
+a.k+³‚0‘ğœ¢ìn£A§’k2`eµY¥ı„å£¡„%`¾û»²æçØĞí+Ş*ˆ¶B/OßÇØ÷z_Øï}µÒËg*³¤Ú¹k~­ª^¡Î”½=çVëO é“!É}ëÛèmöŸ~e¨lª
+W–ª€]åø2|?rØÁÁym‚j1 öå6-~Éi'Âu¤ÁîĞŠØŠÑæ£¯ä$¦81^ŸØlàå‹ÇÑ’ŞvÆÊE‘ñ‡Í—&ø¤L’ksTW‹9¬Õ¨À°;Òv^P²s©q\XànxA‰İp2#‹s6Õ¨™-rş(«şàkWÈøì,g±éÙ=¨ªhæ34Í,³ß"¹¿a;÷ì.áÖ9ÂìõR’raÃ\y¹Vf5*çÎÄEƒFšbêŸªY#as!2ÓÄI]şt”‡BÀFC>¤¬1¹k\Âù7‘\6^“|lêuW/Î~6ğªíeJëg¼Şn'[jFBS¾µ^0/œÜfÊÂØ¶·ŒJÇ³zívœZ„RWÒ3—\&³:—¬m¥Rû˜àv%¬WİaâVôÛĞ¦š%bÁWt‡{·¼ôå¾/ë!€Ó-;ÔT™Û˜rÖi2÷®‡›iËòn¢.HMWì>ta6şˆC÷Ñvıå#>Íl›Ü¦/"ğ’èc’n;\«Å,q`hŞŸ©•´GG,iUÜV]ãÁJò‚:Ğ‰.øös73ıc³3ºåÀ‹v×µıu=»¾Ì5ayŒæ	·éT½İ››¸{8ì‚Ç•5Œwƒİ´PO/.ş®tr/ú}A¯rŞíë%}¢SŞõt·Ñwq3]»ñfø%_zÒo\à¦oü¼g†¿û©>ù»åoax=êò…Û’íCOñéş)¼ï=×U¿õùØUÌûêißzx»<íXO¬ë±Úp}‹…à×ï*%gA“7ø(×~L½Lˆ¼;‡.gÇ_^æş=·×?¿ùü+ød—
+nßşô!¬ir‡Z‚ejwGh×Q€f‡jZv~ğtÄ`Rv|§fô·h§Wä&hv~Ü¤yyXBÔ'd¸y·§5mWp©•m—vuc€uå}RÇ6ğg‚wuzø¡R_¦ö1 æQ>ÈHV:Xt@€Œ“ƒKwmW_¶ViŸ‡6·kq…‚Î·Faƒ×`%}ìW|Òg~L˜Q+lÑt±'vÖ%†å—zş·OkØŠ¶³7†)˜ooˆ~(c‡zh4¿'‡Ø—rgLšä{õv… Ãs8X]aôzŠ8Ù4}ÆR|Xn¬—…‚ÀşJfƒEhÅw8‘˜‰éGŠß‡iğS‚ ¨¢8Z§ˆŠT§Š–8lÄæSØs¢Gõl+…Ee£2§€œ&‹8v…85¶Ud.\¼ˆ{³FjòÄsõâŒsÑøhÏ×Lãtj?¸fŸø^!†Ô¨…U‡k—p4¼w‹qx‡Ó¨Hğè‡ÜXCÙµƒü§r¤<€–œxî(nwfıÆˆ#Ç†~„*¸kötQ²j’6ùC†§†Æ—UÍçZGóaQ8âVİwn©¤‘“&Qí1xÂµxE~%‰…–kÕiŠ_xU¸ˆ16YóT‘FH„R•ş6Y¥!éÃxjˆ€>Vwj(‚SÙ†/Yq§QgG‘ìHèG~3)‰VY`Öèt#Ájë§lÉ(ˆ`é†b	‚¾Õ”…„1Q&T	`NhG˜té(]“qˆAÅ–9…—óø(hyEuŒk‰|Fô)ù‡@™˜†inÙ*ib§˜‘‰z„Éƒjâ•1¹q•yüè]—”sø•5„«¨E“n×ĞkÁŒ*æ#'ˆK)Š°8‚(ùi²pÕLî¨›'ç|ªé[€†SÃ%²©x“G-)™É™±("&g—šùˆ×¹‚­YŠUÉŞ‘(f{&iJá)”_y—å9"'‰ş4˜9z§™™ï¹ò9”ò¸›ùiŸK¨9™ß	šıI’ô9 ò7ˆjùŸJR5e¦Š(É–¶œ·Y(º‘¾ÙY‘Æš:Wz§Ê}ü¹–×”ü†9+Ÿ"Š¡ÀI%÷‘Ì©¢Ş)-Ê›‰ç9é¡_V û)¢Ÿ‰Ÿ©©YÎ‰ã™–˜¹ ıi£FÊv3ør#¢?êŸÃI¥Sê¢:YŸRšˆ>šl!(¡\¹£ï¹¤Ÿ…ˆU
+¦ZÚ£Ä¹ej fcJ£œTKQª¥pªÊxŸ ú£vJ¢¡•Lº§šC@Ço>¹‰º¢*¨Z}b2sÙ¦ğ§8Å§êùuÏ¸ş|“š¦X*¥•Ú‰ùT[-ÖˆIªuAÚ©‹z¥«)—µ•n
+¤zÊ¢¨Ê›¸æPÌ—b¦*“š
+SŠ«¹Ê¨Ú«Š
+¨°*©¿z¦Äª¤²:¬Ô†œ‘Ê¥hº¥jz§U¬}jŸ¼ºmƒù¬Èz­ÊJ¦íFªÀŠ¦Ø:Ş
+­ÑÊ©iµ¬Éº®"Ù®bj®…A®ìš¨f1¯İú®É¯ãº¯ŸÑ¯§š¯Tq¯ğ°çU°×9°úz°5ú¯êZ¯øú°¸¹°É™°Û°±:±-Q±Ü¹±Ât±Â±
+²oú±öZ²««Ñ±›±,±²{²;²³"›²¶ô²[³$Û²/Ö³Á”³.°»³4û³6´{´=´»š´<±´@Û´:[´±ô´F;µ­Tµ‘µXµB{µ§´µCÖµLûµV6¶P[¶ç¶¢´¶j{¶8;ŠïÑ¶iæ²ô¶çz¡w‹·~2·{ë&}ë·h¸&ƒK¸Yb¸‡;%‰«¸Â¸K¹v›¶“K%’k¹òª·™‹¸›Ë¹‹ë¹Ÿë¸¡+º‘Kº¥K¹3‹ºi‚¹«ë®ªëº…Û8±,³[  ;_>http://www.science.unitn.it/~fiorella/guidelinux/tlk/img45.gifOßbplist00Ô
+X$versionY$archiverT$topX$objects † _NSKeyedArchiverÑ	_WebResourceResponse€¯'-.4567OPQRSTUVWXYZ[\]^_`aeU$nullİ !"#$%&___nsurlrequest_proto_prop_obj_6___nsurlrequest_proto_prop_obj_3R$2___nsurlrequest_proto_prop_obj_0R$3___nsurlrequest_proto_prop_obj_4V$class___nsurlrequest_proto_prop_obj_1R$4R$0___nsurlrequest_proto_prop_obj_5___nsurlrequest_proto_prop_obj_2R$1€€€	€€€€ €Ó()$+,WNS.base[NS.relative€ €€_>http://www.science.unitn.it/~fiorella/guidelinux/tlk/img45.gifÒ/012Z$classnameX$classesUNSURL¢13XNSObject#AÃÜöå©¨ ÈÓ89:DNWNS.keysZNS.objects©;<=>?@ABC€	€
+€€€€€€€©EGHIJKLM€€€€€€€€€€VServer\Content-TypeTEtag]Last-ModifiedX__hhaa__]Accept-RangesTDate^Content-LengthZConnection_Apache/2.2.15 (CentOS)Yimage/gif_"8004fd8f-fca-30e2edc185a80"_Wed, 02 Apr 1997 22:15:54 GMT_Ü
+
+YnBsaXN0MDDYAQIDBAUGBwgJCw0PERMVF1pDb25uZWN0aW9uVlNlcnZlclxDb250ZW50LVR5cGVdTGFzdC1Nb2RpZmllZF1BY2NlcHQtUmFuZ2VzVERhdGVeQ29udGVudC1MZW5ndGhURXRhZ6EKVWNsb3NloQxfEBZBcGFjaGUvMi4yLjE1IChDZW50T1MpoQ5ZaW1hZ2UvZ2lmoRBfEB1XZWQsIDAyIEFwciAxOTk3IDIyOjE1OjU0IEdNVKESVWJ5dGVzoRRfEB1TdW4sIDIxIE1hciAyMDIxIDE3OjIwOjE2IEdNVKEWVDQwNDKhGF8QHCI4MDA0ZmQ4Zi1mY2EtMzBlMmVkYzE4NWE4MCIACAAZACQAKwA4AEYAVABZAGgAbQBvAHUAdwCQAJIAnACeAL4AwADGAMgA6ADqAO8A8QAAAAAAAAIBAAAAAAAAABkAAAAAAAAAAAAAAAAAAAEQUbytes_Sun, 21 Mar 2021 17:20:16 GMTT4042UcloseÒ/0bc_NSMutableDictionary£bd3\NSDictionaryÒ/0fg_NSHTTPURLResponse£hi3_NSHTTPURLResponse]NSURLResponse    $ ) 2 7 I L b d „ Š ¥ Ç é ì3:\_b„¦©«­¯±³µ·¹º¼¾ÀÂÉÑİßáã$)4=CFOXZ\ckv€‚„†ˆŠŒ’œ ¢¤¦¨ª¬®°·ÄÉ×àîó&0OoOUuz€…›Ÿ¬±ÅÉİ             j              ë    1 < N d ‚ ‘ ¨&2&<&B&…&†&&–&¬(((U/9/B/ñ/û0B7)727Æ8>ğ>ù?Ø@#GGGûHFO1O:__I             *              f,
