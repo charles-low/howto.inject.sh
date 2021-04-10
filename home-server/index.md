@@ -1,0 +1,3 @@
+```
+apt install dropbear-initramfs
+```
